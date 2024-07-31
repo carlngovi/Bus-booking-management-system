@@ -36,8 +36,14 @@ class User(db.Model):
             'username': self.username,
             'email': self.email,
             'role': self.role,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': {
+                'date': self.created_at.strftime('%Y-%m-%d'),
+                'time': self.created_at.strftime('%H:%M:%S')
+            } if self.created_at else None,
+            'updated_at': {
+                'date': self.updated_at.strftime('%Y-%m-%d'),
+                'time': self.updated_at.strftime('%H:%M:%S')
+            } if self.updated_at else None
         }
 
     def __repr__(self):
@@ -71,8 +77,14 @@ class Bus(db.Model):
             'departure_time': self.departure_time.isoformat(),
             'arrival_time': self.arrival_time.isoformat(),
             'price_per_seat': str(self.price_per_seat),
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': {
+                'date': self.created_at.strftime('%Y-%m-%d'),
+                'time': self.created_at.strftime('%H:%M:%S')
+            } if self.created_at else None,
+            'updated_at': {
+                'date': self.updated_at.strftime('%Y-%m-%d'),
+                'time': self.updated_at.strftime('%H:%M:%S')
+            } if self.updated_at else None
         }
 
     def __repr__(self):
@@ -97,8 +109,14 @@ class Booking(db.Model):
             'customer_id': self.customer_id,
             'seat_number': self.seat_number,
             'status': self.status,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': {
+                'date': self.created_at.strftime('%Y-%m-%d'),
+                'time': self.created_at.strftime('%H:%M:%S')
+            } if self.created_at else None,
+            'updated_at': {
+                'date': self.updated_at.strftime('%Y-%m-%d'),
+                'time': self.updated_at.strftime('%H:%M:%S')
+            } if self.updated_at else None
         }
 
     def __repr__(self):
@@ -119,8 +137,14 @@ class Review(db.Model):
             'booking_id': self.booking_id,
             'review_text': self.review_text,
             'rating': self.rating,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': {
+                'date': self.created_at.strftime('%Y-%m-%d'),
+                'time': self.created_at.strftime('%H:%M:%S')
+            } if self.created_at else None,
+            'updated_at': {
+                'date': self.updated_at.strftime('%Y-%m-%d'),
+                'time': self.updated_at.strftime('%H:%M:%S')
+            } if self.updated_at else None
         }
 
     def __repr__(self):
@@ -137,8 +161,14 @@ class Route(db.Model):
         return {
             'id': self.id,
             'route_name': self.route_name,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': {
+                'date': self.created_at.strftime('%Y-%m-%d'),
+                'time': self.created_at.strftime('%H:%M:%S')
+            } if self.created_at else None,
+            'updated_at': {
+                'date': self.updated_at.strftime('%Y-%m-%d'),
+                'time': self.updated_at.strftime('%H:%M:%S')
+            } if self.updated_at else None
         }
 
     def __repr__(self):
