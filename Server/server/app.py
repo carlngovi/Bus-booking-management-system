@@ -1,6 +1,5 @@
 # server/app.py
 import os
-from flask_bcrypt import Bcrypt
 from flask import Flask, request, session, jsonify
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
@@ -18,7 +17,6 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
 db.init_app(app)
 migrate = Migrate(app, db)
-bcrypt = Bcrypt(app)
 
 
 # Endpoint to create a new user
@@ -95,7 +93,6 @@ def logout():
     
     return jsonify({}), 204
 
-# Endpoint to get all users
 # Endpoint to manage users
 @app.route('/users', methods=['GET', 'POST'])
 def manage_users():
@@ -114,12 +111,12 @@ def manage_users():
         db.session.commit()
         return jsonify(new_user.to_dict()), 201
 
-@app.route('/users/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+@app.route('/users/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
 def manage_user(id):
     user = User.query.get_or_404(id)
     if request.method == 'GET':
         return jsonify(user.to_dict())
-    elif request.method == 'PUT' or request.method == 'PATCH':
+    elif request.method == 'PATCH':
         data = request.json
         if 'username' in data:
             user.username = data['username']
@@ -158,12 +155,12 @@ def manage_buses():
         db.session.commit()
         return jsonify(new_bus.to_dict()), 201
 
-@app.route('/buses/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+@app.route('/buses/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
 def manage_bus(id):
     bus = Bus.query.get_or_404(id)
     if request.method == 'GET':
         return jsonify(bus.to_dict())
-    elif request.method == 'PUT' or request.method == 'PATCH':
+    elif request.method == 'PATCH':
         data = request.json
         if 'driver_id' in data:
             bus.driver_id = data['driver_id']
@@ -207,12 +204,12 @@ def manage_bookings():
         db.session.commit()
         return jsonify(new_booking.to_dict()), 201
 
-@app.route('/bookings/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+@app.route('/bookings/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
 def manage_booking(id):
     booking = Booking.query.get_or_404(id)
     if request.method == 'GET':
         return jsonify(booking.to_dict())
-    elif request.method == 'PUT' or request.method == 'PATCH':
+    elif request.method == 'PATCH':
         data = request.json
         if 'bus_id' in data:
             booking.bus_id = data['bus_id']
@@ -246,12 +243,12 @@ def manage_reviews():
         db.session.commit()
         return jsonify(new_review.to_dict()), 201
 
-@app.route('/reviews/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+@app.route('/reviews/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
 def manage_review(id):
     review = Review.query.get_or_404(id)
     if request.method == 'GET':
         return jsonify(review.to_dict())
-    elif request.method == 'PUT' or request.method == 'PATCH':
+    elif request.method == 'PATCH':
         data = request.json
         if 'booking_id' in data:
             review.booking_id = data['booking_id']
@@ -279,12 +276,12 @@ def manage_routes():
         db.session.commit()
         return jsonify(new_route.to_dict()), 201
 
-@app.route('/routes/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+@app.route('/routes/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
 def manage_route(id):
     route = Route.query.get_or_404(id)
     if request.method == 'GET':
         return jsonify(route.to_dict())
-    elif request.method == 'PUT' or request.method == 'PATCH':
+    elif request.method == 'PATCH':
         data = request.json
         if 'route_name' in data:
             route.route_name = data['route_name']
