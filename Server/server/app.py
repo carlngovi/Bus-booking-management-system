@@ -19,9 +19,6 @@ db.init_app(app)
 CORS(app)
 migrate = Migrate(app, db)
 
-
-# Endpoint to create a new user
-
 @app.before_request
 def check_if_logged_in():
     open_access_list = [
@@ -30,9 +27,13 @@ def check_if_logged_in():
         'check_session'
     ]
 
-    if (request.endpoint) not in open_access_list and (not session.get('user_id')):
-         return {'error': '401 Unauthorized'}, 401
-    
+    # Log the requested endpoint and session info for debugging
+    print(f"Requested endpoint: {request.endpoint}")
+    print(f"User session: {session}")
+
+    if (request.endpoint not in open_access_list) and (not session.get('user_id')):
+        return jsonify({'error': '401 Unauthorized', 'message': 'User not logged in'}), 401
+
 @app.route('/signup', methods=['POST'])
 def signup():
     request_json = request.get_json()
@@ -50,26 +51,19 @@ def signup():
     if User.query.filter_by(email=email).first():
         return jsonify({'error': '422 Unprocessable Entity', 'message': 'Email already exists'}), 422
 
-    user = User(
-        username=username,
-        email=email,
-    )
-
-    # Set the password hash using the setter
+    user = User(username=username, email=email)
     user.password_hash = password
 
     try:
         db.session.add(user)
         db.session.commit()
-
         session['user_id'] = user.id
-
         return jsonify(user.to_dict()), 201
 
     except IntegrityError:
         db.session.rollback()
         return jsonify({'error': '422 Unprocessable Entity', 'message': 'Invalid data'}), 422
-    
+
 @app.route('/login', methods=['POST'])
 def login():
     request_json = request.get_json()
@@ -87,11 +81,9 @@ def login():
 
     return jsonify({'error': '401 Unauthorized', 'message': 'Invalid username or password'}), 401
 
-
 @app.route('/logout', methods=['DELETE'])
 def logout():
-    session.pop('user_id', None)  # Removes the user_id from the session if it exists
-    
+    session.pop('user_id', None)
     return jsonify({}), 204
 
 # Endpoint to manage users
