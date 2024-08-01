@@ -4,9 +4,8 @@ from flask_bcrypt import Bcrypt
 from flask import Flask, request, session, jsonify
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
-from flask_restful import Resource
 from dotenv import load_dotenv
-from config import app, db, api
+from config import app, db
 from models import db, User, Bus, Booking, Review, Route
 
 load_dotenv()
@@ -42,9 +41,8 @@ def signup():
     username = request_json.get('username')
     email = request_json.get('email')
     password = request_json.get('password')
-    role = request_json.get('role')
 
-    if not all([username, email, password, role]):
+    if not all([username, email, password]):
         return jsonify({'error': '400 Bad Request', 'message': 'All fields are required'}), 400
 
     if User.query.filter_by(username=username).first():
@@ -56,7 +54,6 @@ def signup():
     user = User(
         username=username,
         email=email,
-        role=role,
     )
 
     # Set the password hash using the setter
@@ -99,34 +96,204 @@ def logout():
     return jsonify({}), 204
 
 # Endpoint to get all users
-@app.route('/users', methods=['GET'])
-def get_users():
-    users = User.query.all()
-    return jsonify([user.to_dict() for user in users])
+# Endpoint to manage users
+@app.route('/users', methods=['GET', 'POST'])
+def manage_users():
+    if request.method == 'GET':
+        users = User.query.all()
+        return jsonify([user.to_dict() for user in users])
+    elif request.method == 'POST':
+        data = request.json
+        new_user = User(
+            username=data['username'],
+            email=data['email'],
+            role=data['role']
+        )
+        new_user.password_hash = data['password']
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify(new_user.to_dict()), 201
 
-# Endpoint to get all buses
-@app.route('/buses', methods=['GET'])
-def get_buses():
-    buses = Bus.query.all()
-    return jsonify([bus.to_dict() for bus in buses])
+@app.route('/users/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+def manage_user(id):
+    user = User.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(user.to_dict())
+    elif request.method == 'PUT' or request.method == 'PATCH':
+        data = request.json
+        if 'username' in data:
+            user.username = data['username']
+        if 'email' in data:
+            user.email = data['email']
+        if 'role' in data:
+            user.role = data['role']
+        if 'password' in data:
+            user.password_hash = data['password']
+        db.session.commit()
+        return jsonify(user.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(user)
+        db.session.commit()
+        return '', 204
 
-# Endpoint to get all bookings
-@app.route('/bookings', methods=['GET'])
-def get_bookings():
-    bookings = Booking.query.all()
-    return jsonify([booking.to_dict() for booking in bookings])
+# Endpoint to manage buses
+@app.route('/buses', methods=['GET', 'POST'])
+def manage_buses():
+    if request.method == 'GET':
+        buses = Bus.query.all()
+        return jsonify([bus.to_dict() for bus in buses])
+    elif request.method == 'POST':
+        data = request.json
+        new_bus = Bus(
+            driver_id=data['driver_id'],
+            number_plate=data['number_plate'],
+            number_of_seats=data['number_of_seats'],
+            model=data['model'],
+            route=data['route'],
+            departure_time=data['departure_time'],
+            arrival_time=data['arrival_time'],
+            price_per_seat=data['price_per_seat']
+        )
+        db.session.add(new_bus)
+        db.session.commit()
+        return jsonify(new_bus.to_dict()), 201
 
-# Endpoint to get all reviews
-@app.route('/reviews', methods=['GET'])
-def get_reviews():
-    reviews = Review.query.all()
-    return jsonify([review.to_dict() for review in reviews])
+@app.route('/buses/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+def manage_bus(id):
+    bus = Bus.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(bus.to_dict())
+    elif request.method == 'PUT' or request.method == 'PATCH':
+        data = request.json
+        if 'driver_id' in data:
+            bus.driver_id = data['driver_id']
+        if 'number_plate' in data:
+            bus.number_plate = data['number_plate']
+        if 'number_of_seats' in data:
+            bus.number_of_seats = data['number_of_seats']
+        if 'model' in data:
+            bus.model = data['model']
+        if 'route' in data:
+            bus.route = data['route']
+        if 'departure_time' in data:
+            bus.departure_time = data['departure_time']
+        if 'arrival_time' in data:
+            bus.arrival_time = data['arrival_time']
+        if 'price_per_seat' in data:
+            bus.price_per_seat = data['price_per_seat']
+        db.session.commit()
+        return jsonify(bus.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(bus)
+        db.session.commit()
+        return '', 204
 
-# Endpoint to get all routes
-@app.route('/routes', methods=['GET'])
-def get_routes():
-    routes = Route.query.all()
-    return jsonify([route.to_dict() for route in routes])
+# Endpoint to manage bookings
+@app.route('/bookings', methods=['GET', 'POST'])
+def manage_bookings():
+    if request.method == 'GET':
+        bookings = Booking.query.all()
+        return jsonify([booking.to_dict() for booking in bookings])
+    elif request.method == 'POST':
+        data = request.json
+        new_booking = Booking(
+            bus_id=data['bus_id'],
+            customer_id=data['customer_id'],
+            seat_number=data['seat_number'],
+            status=data['status']
+        )
+        new_booking.generate_ticket()
+        db.session.add(new_booking)
+        db.session.commit()
+        return jsonify(new_booking.to_dict()), 201
+
+@app.route('/bookings/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+def manage_booking(id):
+    booking = Booking.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(booking.to_dict())
+    elif request.method == 'PUT' or request.method == 'PATCH':
+        data = request.json
+        if 'bus_id' in data:
+            booking.bus_id = data['bus_id']
+        if 'customer_id' in data:
+            booking.customer_id = data['customer_id']
+        if 'seat_number' in data:
+            booking.seat_number = data['seat_number']
+        if 'status' in data:
+            booking.status = data['status']
+        db.session.commit()
+        return jsonify(booking.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(booking)
+        db.session.commit()
+        return '', 204
+
+# Endpoint to manage reviews
+@app.route('/reviews', methods=['GET', 'POST'])
+def manage_reviews():
+    if request.method == 'GET':
+        reviews = Review.query.all()
+        return jsonify([review.to_dict() for review in reviews])
+    elif request.method == 'POST':
+        data = request.json
+        new_review = Review(
+            booking_id=data['booking_id'],
+            review_text=data['review_text'],
+            rating=data['rating']
+        )
+        db.session.add(new_review)
+        db.session.commit()
+        return jsonify(new_review.to_dict()), 201
+
+@app.route('/reviews/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+def manage_review(id):
+    review = Review.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(review.to_dict())
+    elif request.method == 'PUT' or request.method == 'PATCH':
+        data = request.json
+        if 'booking_id' in data:
+            review.booking_id = data['booking_id']
+        if 'review_text' in data:
+            review.review_text = data['review_text']
+        if 'rating' in data:
+            review.rating = data['rating']
+        db.session.commit()
+        return jsonify(review.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(review)
+        db.session.commit()
+        return '', 204
+
+# Endpoint to manage routes
+@app.route('/routes', methods=['GET', 'POST'])
+def manage_routes():
+    if request.method == 'GET':
+        routes = Route.query.all()
+        return jsonify([route.to_dict() for route in routes])
+    elif request.method == 'POST':
+        data = request.json
+        new_route = Route(route_name=data['route_name'])
+        db.session.add(new_route)
+        db.session.commit()
+        return jsonify(new_route.to_dict()), 201
+
+@app.route('/routes/<int:id>', methods=['GET', 'PUT', 'PATCH', 'DELETE'])
+def manage_route(id):
+    route = Route.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(route.to_dict())
+    elif request.method == 'PUT' or request.method == 'PATCH':
+        data = request.json
+        if 'route_name' in data:
+            route.route_name = data['route_name']
+        db.session.commit()
+        return jsonify(route.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(route)
+        db.session.commit()
+        return '', 204
 
 
 if __name__ == '__main__':
