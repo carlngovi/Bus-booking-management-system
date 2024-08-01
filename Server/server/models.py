@@ -1,8 +1,10 @@
 # models.py
-
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, func
 from datetime import datetime, timezone
+from sqlalchemy.ext.hybrid import hybrid_property
+from flask_bcrypt import Bcrypt
+import random, string
 
 # Contains definitions of tables and associated schema constructs
 metadata = MetaData(naming_convention={
@@ -11,6 +13,7 @@ metadata = MetaData(naming_convention={
 
 # Create the Flask SQLAlchemy extension
 db = SQLAlchemy(metadata=metadata)
+bcrypt = Bcrypt()
 
 # Association table for the many-to-many relationship between Bus and Route
 bus_routes = db.Table('bus_routes', metadata,
@@ -22,11 +25,12 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.String(50), nullable=False)  # 'admin', 'driver', 'customer'
+    passwordhash = db.Column(db.String(128), nullable=False)
+    role = db.Column(db.String(50))  # 'admin', 'driver', 'customer'
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+    #Relationships
     bookings = db.relationship('Booking', backref='user', lazy=True)
     buses = db.relationship('Bus', backref='driver', lazy=True)
 
@@ -48,7 +52,23 @@ class User(db.Model):
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}', role='{self.role}')>"
+    
+    @hybrid_property
+    def password_hash(self):
+        return self.passwordhash
 
+    @password_hash.setter
+    def password_hash(self, password):
+        # utf-8 encoding and decoding is required in python 3
+        password_hash = bcrypt.generate_password_hash(
+            password.encode('utf-8'))
+        self.passwordhash = password_hash.decode('utf-8')
+
+    def authenticate(self, password):
+        return bcrypt.check_password_hash(
+            self.passwordhash, password.encode('utf-8'))
+
+    
 class Bus(db.Model):
     __tablename__ = 'buses'
     id = db.Column(db.Integer, primary_key=True)
@@ -63,6 +83,7 @@ class Bus(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+    #Relationships
     bookings = db.relationship('Booking', backref='bus', lazy=True)
     routes = db.relationship('Route', secondary=bus_routes, backref='buses', lazy=True)
 
@@ -99,7 +120,19 @@ class Booking(db.Model):
     status = db.Column(db.String(50), nullable=False)  # 'booked', 'cancelled'
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    ticket = db.Column(db.String(6), unique=True, nullable=False, default='')
 
+    def generate_ticket(self):
+        # Generate a random 6-digit code with 5 numbers and 1 letter
+        while True:
+            code = ''.join(random.choices(string.digits, k=5) + random.choices(string.ascii_uppercase, k=1))
+            random.shuffle(list(code))
+            existing_booking = Booking.query.filter_by(ticket=code).first()
+            if not existing_booking:
+                self.ticket = code
+                break
+
+    #Relationships
     review = db.relationship('Review', backref='booking', uselist=False)
 
     def to_dict(self):
@@ -116,11 +149,12 @@ class Booking(db.Model):
             'updated_at': {
                 'date': self.updated_at.strftime('%Y-%m-%d'),
                 'time': self.updated_at.strftime('%H:%M:%S')
-            } if self.updated_at else None
+            } if self.updated_at else None,
+            'ticket': self.ticket
         }
 
     def __repr__(self):
-        return f"<Booking(id={self.id}, bus_id={self.bus_id}, customer_id={self.customer_id}, seat_number={self.seat_number}, status='{self.status}')>"
+        return f"<Booking(id={self.id}, bus_id={self.bus_id}, customer_id={self.customer_id}, seat_number={self.seat_number}, status='{self.status}', ticket='{self.ticket}')>"
 
 class Review(db.Model):
     __tablename__ = 'reviews'

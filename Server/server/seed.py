@@ -1,148 +1,73 @@
-from app import  db, app
-from models import db, User, Bus, Booking, Review, Route
-from datetime import datetime, timezone
+import random
+import string
+from datetime import datetime, timedelta, timezone
 
+from app import db, app
+from models import User, Bus, Booking, Review, Route
 
-with app.app_context():
-    # Drop all tables
-    db.drop_all()
+def random_string(length=8):
+    letters = string.ascii_lowercase
+    return ''.join(random.choice(letters) for i in range(length))
 
-    # Create all tables
-    db.create_all()
+def random_digit_string(length=5):
+    digits = string.digits
+    return ''.join(random.choice(digits) for i in range(length))
 
-    # Create sample users
-    admin = User(
-        username='admin',
-        email='admin@example.com',
-        password_hash='hashed_password_admin',
-        role='admin',
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
+def generate_ticket():
+    return random_digit_string(5) + random.choice(string.ascii_uppercase)
 
-    driver = User(
-        username='driver1',
-        email='driver1@example.com',
-        password_hash='hashed_password_driver1',
-        role='driver',
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    customer = User(
-        username='customer1',
-        email='customer1@example.com',
-        password_hash='hashed_password_customer1',
-        role='customer',
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    # Add users to the session
-    db.session.add(admin)
-    db.session.add(driver)
-    db.session.add(customer)
+def seed_users():
+    user1 = User(username='admin', email='admin@example.com', role='admin')
+    user1.password_hash = 'adminpassword'
+    user2 = User(username='driver', email='driver@example.com', role='driver')
+    user2.password_hash = 'driverpassword'
+    user3 = User(username='customer', email='customer@example.com', role='customer')
+    user3.password_hash = 'customerpassword'
+    
+    db.session.add_all([user1, user2, user3])
     db.session.commit()
 
-    # Create sample routes
-    route1 = Route(
-        route_name='Route 1',
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    route2 = Route(
-        route_name='Route 2',
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    # Add routes to the session
-    db.session.add(route1)
-    db.session.add(route2)
+def seed_routes():
+    route1 = Route(route_name='Route 1')
+    route2 = Route(route_name='Route 2')
+    db.session.add_all([route1, route2])
     db.session.commit()
 
-    # Create sample buses
-    bus1 = Bus(
-        driver_id=driver.id,
-        number_plate='ABC123',
-        number_of_seats=50,
-        model='Model X',
-        route='Route 1',
-        departure_time=datetime.now(timezone.utc),
-        arrival_time=datetime.now(timezone.utc),
-        price_per_seat=10.5,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    bus2 = Bus(
-        driver_id=driver.id,
-        number_plate='XYZ789',
-        number_of_seats=40,
-        model='Model Y',
-        route='Route 2',
-        departure_time=datetime.now(timezone.utc),
-        arrival_time=datetime.now(timezone.utc),
-        price_per_seat=12.0,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    # Add buses to the session
-    db.session.add(bus1)
-    db.session.add(bus2)
+def seed_buses():
+    bus1 = Bus(driver_id=2, number_plate='ABC123', number_of_seats=50, model='Model X', route='Route 1',
+               departure_time=datetime.now(timezone.utc) + timedelta(hours=1), arrival_time=datetime.now(timezone.utc) + timedelta(hours=5), price_per_seat=20.5)
+    bus2 = Bus(driver_id=2, number_plate='XYZ789', number_of_seats=60, model='Model Y', route='Route 2',
+               departure_time=datetime.now(timezone.utc) + timedelta(hours=2), arrival_time=datetime.now(timezone.utc) + timedelta(hours=6), price_per_seat=25.0)
+    
+    db.session.add_all([bus1, bus2])
     db.session.commit()
 
-    # Create sample bookings
-    booking1 = Booking(
-        bus_id=bus1.id,
-        customer_id=customer.id,
-        seat_number=1,
-        status='booked',
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    booking2 = Booking(
-        bus_id=bus2.id,
-        customer_id=customer.id,
-        seat_number=2,
-        status='cancelled',
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    # Add bookings to the session
-    db.session.add(booking1)
-    db.session.add(booking2)
+def seed_bookings():
+    booking1 = Booking(bus_id=1, customer_id=3, seat_number=1, status='booked', ticket=generate_ticket())
+    booking2 = Booking(bus_id=2, customer_id=3, seat_number=2, status='booked', ticket=generate_ticket())
+    
+    db.session.add_all([booking1, booking2])
     db.session.commit()
 
-    # Create sample reviews
-    review1 = Review(
-        booking_id=booking1.id,
-        review_text='Great service!',
-        rating=5,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    review2 = Review(
-        booking_id=booking2.id,
-        review_text='Cancelled my trip.',
-        rating=1,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
-    )
-
-    # Add reviews to the session
-    db.session.add(review1)
-    db.session.add(review2)
+def seed_reviews():
+    review1 = Review(booking_id=1, review_text='Great ride!', rating=5)
+    review2 = Review(booking_id=2, review_text='Comfortable journey.', rating=4)
+    
+    db.session.add_all([review1, review2])
     db.session.commit()
 
-    # Associate buses with routes
-    bus1.routes.append(route1)
-    bus2.routes.append(route2)
-    db.session.commit()
+def seed_database():
+    with app.app_context():
+        db.drop_all()
+        db.create_all()
+        
+        seed_users()
+        seed_routes()
+        seed_buses()
+        seed_bookings()
+        seed_reviews()
 
-    print("Database seeded successfully!")
+        print('Database seeded!')
+
+if __name__ == '__main__':
+    seed_database()
