@@ -4,7 +4,6 @@ from flask import Flask, request, session, jsonify
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 from dotenv import load_dotenv
-from config import app, db
 from models import db, User, Bus, Booking, Review, Route
 
 load_dotenv()
