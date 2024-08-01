@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 from models import db, User, Bus, Booking, Review, Route
+from flask_cors import CORS
 
 load_dotenv()
 
@@ -15,6 +16,7 @@ app.json.compact = False
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
 db.init_app(app)
+CORS(app)
 migrate = Migrate(app, db)
 
 
