@@ -1,11 +1,13 @@
 # server/app.py
-import os
+import os, firebase_admin
 from flask import Flask, request, session, jsonify
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 from models import db, User, Bus, Booking, Review, Route
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from firebase_admin import auth, initialize_app, credentials
 
 load_dotenv()
 
@@ -18,6 +20,18 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY')
 db.init_app(app)
 CORS(app)
 migrate = Migrate(app, db)
+jwt = JWTManager(app)
+
+# Initialize Firebase Admin SDK
+firebase_credentials_path = os.getenv('FIREBASE_CREDENTIALS')
+if not firebase_credentials_path:
+    raise ValueError("FIREBASE_CREDENTIALS environment variable is not set")
+
+cred = credentials.Certificate(firebase_credentials_path)
+firebase_admin.initialize_app(cred)
+
+
+# Endpoint to create a new user
 
 @app.before_request
 def check_if_logged_in():
@@ -27,13 +41,9 @@ def check_if_logged_in():
         'check_session'
     ]
 
-    # Log the requested endpoint and session info for debugging
-    print(f"Requested endpoint: {request.endpoint}")
-    print(f"User session: {session}")
-
-    if (request.endpoint not in open_access_list) and (not session.get('user_id')):
-        return jsonify({'error': '401 Unauthorized', 'message': 'User not logged in'}), 401
-
+    if (request.endpoint) not in open_access_list and (not session.get('user_id')):
+         return {'error': '401 Unauthorized'}, 401
+    
 @app.route('/signup', methods=['POST'])
 def signup():
     request_json = request.get_json()
@@ -42,48 +52,77 @@ def signup():
     email = request_json.get('email')
     password = request_json.get('password')
 
-    if not all([username, email, password]):
-        return jsonify({'error': '400 Bad Request', 'message': 'All fields are required'}), 400
-
-    if User.query.filter_by(username=username).first():
-        return jsonify({'error': '422 Unprocessable Entity', 'message': 'Username already exists'}), 422
-
-    if User.query.filter_by(email=email).first():
-        return jsonify({'error': '422 Unprocessable Entity', 'message': 'Email already exists'}), 422
-
-    user = User(username=username, email=email)
-    user.password_hash = password
-
+    if not email or not password or not username:
+        return jsonify({'message': 'Email, password, and username are required'}), 400
     try:
-        db.session.add(user)
+        # Create Firebase user
+        user_record = auth.create_user(
+            email=email,
+            password=password
+        )
+        firebase_uid = user_record.uid
+
+        # Create new user in PostgreSQL
+        new_user = User(email=email, username=username, firebase_uid=firebase_uid)
+        db.session.add(new_user)
         db.session.commit()
-        session['user_id'] = user.id
-        return jsonify(user.to_dict()), 201
 
-    except IntegrityError:
-        db.session.rollback()
-        return jsonify({'error': '422 Unprocessable Entity', 'message': 'Invalid data'}), 422
+        access_token = create_access_token(identity=new_user.id)
+        return jsonify({'token': access_token}), 201
+    
+    except Exception as e:
+        return jsonify({'message': 'Error registering user', 'error': str(e)}), 400
 
+    
 @app.route('/login', methods=['POST'])
 def login():
-    request_json = request.get_json()
-    username = request_json.get('username')
-    password = request_json.get('password')
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
 
-    if not username or not password:
-        return jsonify({'error': '400 Bad Request', 'message': 'Username and password are required'}), 400
+    if not email or not password:
+        return jsonify({'message': 'Email and password are required'}), 400
 
-    user = User.query.filter_by(username=username).first()
+    try:
+        # Verify Firebase user
+        user = auth.get_user_by_email(email)
+        firebase_uid = user.uid
 
-    if user and user.authenticate(password):
-        session['user_id'] = user.id
-        return jsonify(user.to_dict()), 200
+        # Get user from PostgreSQL
+        user = User.query.filter_by(firebase_uid=firebase_uid).first()
 
-    return jsonify({'error': '401 Unauthorized', 'message': 'Invalid username or password'}), 401
+        if user:
+            access_token = create_access_token(identity=user.id)
+            return jsonify({'token': access_token}), 200
+        else:
+            return jsonify({'message': 'User not found in database'}), 404
+
+    except Exception as e:
+        return jsonify({'message': 'Invalid credentials', 'error': str(e)}), 401
+
+@app.route('/current_user', methods=['GET'])
+@jwt_required()
+def get_current_user():
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+
+        if current_user:
+            return jsonify({
+                'email': current_user.email,
+                'name': current_user.username,
+            }), 200
+        else:
+            return jsonify({'message': 'User not found'}), 404
+    except Exception as e:
+        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+
+
 
 @app.route('/logout', methods=['DELETE'])
 def logout():
-    session.pop('user_id', None)
+    session.pop('user_id', None)  # Removes the user_id from the session if it exists
+    
     return jsonify({}), 204
 
 # Endpoint to manage users
@@ -180,6 +219,52 @@ def manage_bus(id):
 
 # Endpoint to manage bookings
 @app.route('/bookings', methods=['GET', 'POST'])
+@jwt_required()
+def manage_bookings():
+    current_user_id = get_jwt_identity()
+
+    if request.method == 'GET':
+        bookings = Booking.query.filter_by(customer_id=current_user_id).all()
+        return jsonify([booking.to_dict() for booking in bookings]), 200
+
+    elif request.method == 'POST':
+        data = request.json
+        new_booking = Booking(
+            bus_id=data['bus_id'],
+            customer_id=current_user_id,  # Use current_user_id instead of data['customer_id']
+            seat_number=data['seat_number'],
+            status=data['status']
+        )
+        new_booking.generate_ticket()
+        db.session.add(new_booking)
+        db.session.commit()
+        return jsonify(new_booking.to_dict()), 201
+
+@app.route('/bookings/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
+@jwt_required()
+def manage_booking(id):
+    current_user_id = get_jwt_identity()
+    booking = Booking.query.filter_by(id=id, customer_id=current_user_id).first_or_404()
+
+    if request.method == 'GET':
+        return jsonify(booking.to_dict()), 200
+    elif request.method == 'PATCH':
+        data = request.json
+        if 'bus_id' in data:
+            booking.bus_id = data['bus_id']
+        if 'seat_number' in data:
+            booking.seat_number = data['seat_number']
+        if 'status' in data:
+            booking.status = data['status']
+        db.session.commit()
+        return jsonify(booking.to_dict()), 200
+    elif request.method == 'DELETE':
+        db.session.delete(booking)
+        db.session.commit()
+        return '', 204
+    
+# Endpoint to manage bookings
+@app.route('/adminbookings', methods=['GET', 'POST'])
 def manage_bookings():
     if request.method == 'GET':
         bookings = Booking.query.all()
@@ -197,7 +282,7 @@ def manage_bookings():
         db.session.commit()
         return jsonify(new_booking.to_dict()), 201
 
-@app.route('/bookings/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
+@app.route('/adminbookings/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
 def manage_booking(id):
     booking = Booking.query.get_or_404(id)
     if request.method == 'GET':

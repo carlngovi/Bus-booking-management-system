@@ -17,11 +17,11 @@ def generate_ticket():
     return random_digit_string(5) + random.choice(string.ascii_uppercase)
 
 def seed_users():
-    user1 = User(username='admin', email='admin@example.com', role='admin')
+    user1 = User(username='admin', email='admin@example.com', firebase_uid='adminUID')
     user1.password_hash = 'adminpassword'
-    user2 = User(username='driver', email='driver@example.com', role='driver')
+    user2 = User(username='driver', email='driver@example.com', firebase_uid='driverUID')
     user2.password_hash = 'driverpassword'
-    user3 = User(username='customer', email='customer@example.com', role='customer')
+    user3 = User(username='customer', email='customer@example.com', firebase_uid='customerUID')
     user3.password_hash = 'customerpassword'
     
     db.session.add_all([user1, user2, user3])
