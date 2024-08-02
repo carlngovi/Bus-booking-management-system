@@ -265,7 +265,7 @@ def manage_booking(id):
     
 # Endpoint to manage bookings
 @app.route('/adminbookings', methods=['GET', 'POST'])
-def manage_bookings():
+def admin_bookings():
     if request.method == 'GET':
         bookings = Booking.query.all()
         return jsonify([booking.to_dict() for booking in bookings])
@@ -283,7 +283,7 @@ def manage_bookings():
         return jsonify(new_booking.to_dict()), 201
 
 @app.route('/adminbookings/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
-def manage_booking(id):
+def admin_booking(id):
     booking = Booking.query.get_or_404(id)
     if request.method == 'GET':
         return jsonify(booking.to_dict())
