@@ -1,0 +1,2 @@
+# Add the file to .gitignore
+Server/server/.env.json
