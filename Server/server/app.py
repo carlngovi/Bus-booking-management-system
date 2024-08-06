@@ -4,7 +4,7 @@ from flask import Flask, request, session, jsonify
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 from dotenv import load_dotenv
-from models import db, User, Bus, Booking, Review, Route
+from models import db, User, Bus, Booking, Review, Route, ContactUs
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from firebase_admin import auth, initialize_app, credentials
@@ -32,18 +32,6 @@ firebase_admin.initialize_app(cred)
 
 
 # Endpoint to create a new user
-
-@app.before_request
-def check_if_logged_in():
-    open_access_list = [
-        'signup',
-        'login',
-        'check_session'
-    ]
-
-    if (request.endpoint) not in open_access_list and (not session.get('user_id')):
-         return {'error': '401 Unauthorized'}, 401
-    
 @app.route('/signup', methods=['POST'])
 def signup():
     request_json = request.get_json()
@@ -76,29 +64,34 @@ def signup():
     
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
+    request_json = request.get_json()
 
-    if not email or not password:
-        return jsonify({'message': 'Email and password are required'}), 400
+    uid = request_json.get('uid')
+    email = request_json.get('email')
+
+    if not uid or not email:
+        return jsonify({'message': 'UID and email are required'}), 400
 
     try:
-        # Verify Firebase user
-        user = auth.get_user_by_email(email)
-        firebase_uid = user.uid
-
-        # Get user from PostgreSQL
-        user = User.query.filter_by(firebase_uid=firebase_uid).first()
+        # Get user from Firebase using the UID
+        user_record = auth.get_user(uid)
+        
+        # Optionally, get user from PostgreSQL if needed
+        user = User.query.filter_by(firebase_uid=uid).first()
 
         if user:
             access_token = create_access_token(identity=user.id)
-            return jsonify({'token': access_token}), 200
+            return jsonify({
+                'token': access_token,
+                'user': {
+                    'email': user_record.email,
+                    'name': user.username
+                }
+            }), 200
         else:
             return jsonify({'message': 'User not found in database'}), 404
-
-    except Exception as e:
-        return jsonify({'message': 'Invalid credentials', 'error': str(e)}), 401
+    except auth.AuthError as e:
+        return jsonify({'message': 'Error fetching user data from Firebase', 'error': str(e)}), 401
 
 @app.route('/current_user', methods=['GET'])
 @jwt_required()
@@ -136,7 +129,7 @@ def manage_users():
         new_user = User(
             username=data['username'],
             email=data['email'],
-            role=data['role']
+
         )
         new_user.password_hash = data['password']
         db.session.add(new_user)
@@ -313,8 +306,9 @@ def manage_reviews():
     elif request.method == 'POST':
         data = request.json
         new_review = Review(
-            booking_id=data['booking_id'],
-            review_text=data['review_text'],
+            name=data['name'],
+            email=data['email'],
+            review=data['review'],
             rating=data['rating']
         )
         db.session.add(new_review)
@@ -328,10 +322,12 @@ def manage_review(id):
         return jsonify(review.to_dict())
     elif request.method == 'PATCH':
         data = request.json
-        if 'booking_id' in data:
-            review.booking_id = data['booking_id']
-        if 'review_text' in data:
-            review.review_text = data['review_text']
+        if 'name' in data:
+            review.name = data['name']
+        if 'email' in data:
+            review.email = data['email']
+        if 'review' in data:
+            review.review = data['review']
         if 'rating' in data:
             review.rating = data['rating']
         db.session.commit()
@@ -340,7 +336,44 @@ def manage_review(id):
         db.session.delete(review)
         db.session.commit()
         return '', 204
-
+    
+# Endpoint to manage contactus
+@app.route('/contact', methods=['GET', 'POST'])
+def manage_contactus():
+    if request.method == 'GET':
+        contactus = ContactUs.query.all()
+        return jsonify([contact.to_dict() for contact in contactus])
+    elif request.method == 'POST':
+        data = request.json
+        new_contact = ContactUs(
+            name=data['name'],
+            email=data['email'],
+            message=data['message']
+        )
+        db.session.add(new_contact)
+        db.session.commit()
+        return jsonify(new_contact.to_dict()), 201
+    
+@app.route('/contact/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
+def manage_contact(id):
+    contact = ContactUs.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(contact.to_dict())
+    elif request.method == 'PATCH':
+        data = request.json
+        if 'name' in data:
+            contact.name = data['name']
+        if 'email' in data:
+            contact.email = data['email']
+        if 'message' in data:
+            contact.message = data['message']
+        db.session.commit()
+        return jsonify(contact.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(contact)
+        db.session.commit()
+        return '', 204
+    
 # Endpoint to manage routes
 @app.route('/routes', methods=['GET', 'POST'])
 def manage_routes():

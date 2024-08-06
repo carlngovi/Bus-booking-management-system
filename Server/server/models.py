@@ -45,11 +45,12 @@ class User(db.Model):
             'updated_at': {
                 'date': self.updated_at.strftime('%Y-%m-%d'),
                 'time': self.updated_at.strftime('%H:%M:%S')
-            } if self.updated_at else None
+            } if self.updated_at else None,
+            'firebase_uid': self.firebase_uid
         }
 
     def __repr__(self):
-        return f"<User(id={self.id}, username='{self.username}', email='{self.email}')>"
+        return f"<User(id={self.id}, username='{self.username}', email='{self.email} ', firebase_uid='{self.firebase_uid}')>"
     
 
     
@@ -95,6 +96,25 @@ class Bus(db.Model):
     def __repr__(self):
         return f"<Bus(id={self.id}, number_plate='{self.number_plate}', model='{self.model}', route='{self.route}')>"
 
+class ContactUs(db.Model):
+    __tablename__ = 'contactus'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'message': self.message,
+            'created_at': self.created_at
+        }
+    def __repr__(self):
+        return f"<ContactForm(id={self.id}, name='{self.name}', email='{self.email}')>"
 class Booking(db.Model):
     __tablename__ = 'bookings'
     id = db.Column(db.Integer, primary_key=True)
@@ -115,9 +135,6 @@ class Booking(db.Model):
             if not existing_booking:
                 self.ticket = code
                 break
-
-    #Relationships
-    review = db.relationship('Review', backref='booking', uselist=False)
 
     def to_dict(self):
         return {
@@ -143,8 +160,9 @@ class Booking(db.Model):
 class Review(db.Model):
     __tablename__ = 'reviews'
     id = db.Column(db.Integer, primary_key=True)
-    booking_id = db.Column(db.Integer, db.ForeignKey('bookings.id'), nullable=False)
-    review_text = db.Column(db.Text, nullable=False)
+    name = db.Column(db.String(50), nullable=False)
+    email = db.Column(db.String(50), nullable=False)
+    review = db.Column(db.Text, nullable=False)
     rating = db.Column(db.Integer, nullable=False)  # '1-5'
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -152,8 +170,9 @@ class Review(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
-            'booking_id': self.booking_id,
-            'review_text': self.review_text,
+            'name': self.name,
+            'email': self.email,
+            'review': self.review,
             'rating': self.rating,
             'created_at': {
                 'date': self.created_at.strftime('%Y-%m-%d'),
@@ -166,7 +185,7 @@ class Review(db.Model):
         }
 
     def __repr__(self):
-        return f"<Review(id={self.id}, booking_id={self.booking_id}, rating={self.rating})>"
+        return f"<Review(id={self.id}, name='{self.name}', email='{self.email}', review='{self.review}', rating={self.rating})>"
 
 class Route(db.Model):
     __tablename__ = 'routes'

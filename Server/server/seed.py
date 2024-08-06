@@ -3,7 +3,7 @@ import string
 from datetime import datetime, timedelta, timezone
 
 from app import db, app
-from models import User, Bus, Booking, Review, Route
+from models import User, Bus, Booking, Review, Route, ContactUs
 
 def random_string(length=8):
     letters = string.ascii_lowercase
@@ -16,16 +16,6 @@ def random_digit_string(length=5):
 def generate_ticket():
     return random_digit_string(5) + random.choice(string.ascii_uppercase)
 
-def seed_users():
-    user1 = User(username='admin', email='admin@example.com', firebase_uid='adminUID')
-    user1.password_hash = 'adminpassword'
-    user2 = User(username='driver', email='driver@example.com', firebase_uid='driverUID')
-    user2.password_hash = 'driverpassword'
-    user3 = User(username='customer', email='customer@example.com', firebase_uid='customerUID')
-    user3.password_hash = 'customerpassword'
-    
-    db.session.add_all([user1, user2, user3])
-    db.session.commit()
 
 def seed_routes():
     route1 = Route(route_name='Route 1')
@@ -50,10 +40,19 @@ def seed_bookings():
     db.session.commit()
 
 def seed_reviews():
-    review1 = Review(booking_id=1, review_text='Great ride!', rating=5)
-    review2 = Review(booking_id=2, review_text='Comfortable journey.', rating=4)
+    review1 = Review(name='John Doe', email='john@example.com', review='Great service!', rating=5)
+    review2 = Review(name='Jane Smith', email='jane@example.com', review='Very comfortable ride.', rating=4)
+    review3 = Review(name='Alice Jones', email='alice@example.com', review='The bus was on time and very comfortable.', rating=4)
     
-    db.session.add_all([review1, review2])
+    db.session.add_all([review1, review2, review3])
+    db.session.commit()
+
+def seed_contactus():
+    contact1 = ContactUs(name='John Doe', email='john@example.com', message='Hello, I need help with my booking.')
+    contact2 = ContactUs(name='Jane Smith', email='jane@example.com', message='I have a question about the routes.')
+    contact3 = ContactUs(name='Alice Jones', email='alice@example.com', message='How can I cancel my booking?')
+    
+    db.session.add_all([contact1, contact2, contact3])
     db.session.commit()
 
 def seed_database():
@@ -66,6 +65,7 @@ def seed_database():
         seed_buses()
         seed_bookings()
         seed_reviews()
+        seed_contactus()
 
         print('Database seeded!')
 
