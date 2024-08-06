@@ -46,7 +46,7 @@ class User(db.Model):
                 'date': self.updated_at.strftime('%Y-%m-%d'),
                 'time': self.updated_at.strftime('%H:%M:%S')
             } if self.updated_at else None,
-            'firebase_uid': self.firebase_uid
+
         }
 
     def __repr__(self):
