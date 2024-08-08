@@ -60,8 +60,9 @@ class Bus(db.Model):
     driver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     number_plate = db.Column(db.String(20), unique=True, nullable=False)
     number_of_seats = db.Column(db.Integer, nullable=False)
-    model = db.Column(db.String(50), nullable=False)
-    route = db.Column(db.String(100), nullable=False)
+    seats_available = db.Column(db.Integer, nullable=False)
+    depatrture_from = db.Column(db.String(20), nullable = False )
+    depatrture_to = db.Column(db.String(20), nullable = False)
     departure_time = db.Column(db.DateTime, nullable=False)
     arrival_time = db.Column(db.DateTime, nullable=False)
     price_per_seat = db.Column(db.Numeric, nullable=False)
@@ -72,12 +73,17 @@ class Bus(db.Model):
     bookings = db.relationship('Booking', backref='bus', lazy=True)
     routes = db.relationship('Route', secondary=bus_routes, backref='buses', lazy=True)
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.seats_available = self.number_of_seats
+
     def to_dict(self):
         return {
             'id': self.id,
             'driver_id': self.driver_id,
             'number_plate': self.number_plate,
             'number_of_seats': self.number_of_seats,
+            'seats_available': self.seats_available,
             'model': self.model,
             'route': self.route,
             'departure_time': self.departure_time.isoformat(),
@@ -121,7 +127,7 @@ class Booking(db.Model):
     bus_id = db.Column(db.Integer, db.ForeignKey('buses.id'), nullable=False)
     customer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     seat_number = db.Column(db.Integer, nullable=False)
-    status = db.Column(db.String(50), nullable=False)  # 'booked', 'cancelled'
+    status = db.Column(db.String(50), nullable=False, default='booked')  # 'booked', 'cancelled'
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     ticket = db.Column(db.String(6), unique=True, nullable=False, default='')
@@ -157,6 +163,15 @@ class Booking(db.Model):
     def __repr__(self):
         return f"<Booking(id={self.id}, bus_id={self.bus_id}, customer_id={self.customer_id}, seat_number={self.seat_number}, status='{self.status}', ticket='{self.ticket}')>"
 
+    def book_seat(self):
+        bus = Bus.query.get(self.bus_id)
+        if bus and bus.seats_available > 0:
+            bus.seats_available -= 1
+            db.session.add(self)
+            db.session.commit()
+        else:
+            raise ValueError("No available seats for this bus.")
+
 class Review(db.Model):
     __tablename__ = 'reviews'
     id = db.Column(db.Integer, primary_key=True)
@@ -191,6 +206,7 @@ class Route(db.Model):
     __tablename__ = 'routes'
     id = db.Column(db.Integer, primary_key=True)
     route_name = db.Column(db.String(100), nullable=False)
+
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
