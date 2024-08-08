@@ -81,20 +81,20 @@ def signup():
 @app.route('/login', methods=['POST'])
 def login():
     request_json = request.get_json()
-    required_fields = ['uid', 'email']
-    validation_error = validate_fields(required_fields, request_json)
-    if validation_error:
-        return validation_error
 
     uid = request_json.get('uid')
     email = request_json.get('email')
 
+    if not uid or not email:
+        return jsonify({'message': 'UID and email are required'}), 400
+
     try:
-        # Verify Firebase ID token instead of just using UID
+        # Get user from Firebase using the UID
         user_record = auth.get_user(uid)
         
-        # Check if user exists in PostgreSQL
+        # Optionally, get user from PostgreSQL if needed
         user = User.query.filter_by(firebase_uid=uid).first()
+
         if user:
             access_token = create_access_token(identity=user.id)
             return jsonify({
@@ -106,9 +106,9 @@ def login():
             }), 200
         else:
             return jsonify({'message': 'User not found in database'}), 404
-    except Exception as e:
-        logging.error(f"Error logging in user: {str(e)}")
-        return jsonify({'message': 'Error logging in user', 'error': str(e)}), 401
+    except auth.AuthError as e:
+        return jsonify({'message': 'Error fetching user data from Firebase', 'error': str(e)}), 401
+
 
 # Endpoint to get current logged-in user details
 @app.route('/current_user', methods=['GET'])
