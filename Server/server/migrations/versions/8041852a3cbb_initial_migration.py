@@ -1,8 +1,8 @@
-"""Added Contact-Us table
+"""initial migration
 
-Revision ID: f025efc41854
-Revises: 303c126eec4a
-Create Date: 2024-08-04 14:44:30.535663
+Revision ID: 8041852a3cbb
+Revises: 
+Create Date: 2024-08-08 16:09:47.906476
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'f025efc41854'
-down_revision = '303c126eec4a'
+revision = '8041852a3cbb'
+down_revision = None
 branch_labels = None
 depends_on = None
 
@@ -60,8 +60,9 @@ def upgrade():
     sa.Column('driver_id', sa.Integer(), nullable=False),
     sa.Column('number_plate', sa.String(length=20), nullable=False),
     sa.Column('number_of_seats', sa.Integer(), nullable=False),
-    sa.Column('model', sa.String(length=50), nullable=False),
-    sa.Column('route', sa.String(length=100), nullable=False),
+    sa.Column('seats_available', sa.Integer(), nullable=False),
+    sa.Column('depatrture_from', sa.String(length=20), nullable=False),
+    sa.Column('depatrture_to', sa.String(length=20), nullable=False),
     sa.Column('departure_time', sa.DateTime(), nullable=False),
     sa.Column('arrival_time', sa.DateTime(), nullable=False),
     sa.Column('price_per_seat', sa.Numeric(), nullable=False),
