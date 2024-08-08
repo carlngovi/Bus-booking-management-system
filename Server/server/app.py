@@ -1,25 +1,22 @@
+# server/app.py
 import os, firebase_admin
 from flask import Flask, request, session, jsonify
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 from dotenv import load_dotenv
-from models import db, User, Bus, Booking, ContactUs, Route
+from models import db, User, Bus, Booking, Review, Route, ContactUs
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from firebase_admin import auth, initialize_app, credentials
-import logging
 
-# Load environment variables
 load_dotenv()
 
-# Initialize the Flask application
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.json.compact = False
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
-# Initialize extensions
 db.init_app(app)
 CORS(app)
 migrate = Migrate(app, db)
@@ -33,29 +30,18 @@ if not firebase_credentials_path:
 cred = credentials.Certificate(firebase_credentials_path)
 firebase_admin.initialize_app(cred)
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-
-# Utility function to validate required fields
-def validate_fields(fields, data):
-    missing = [field for field in fields if field not in data or not data[field]]
-    if missing:
-        return jsonify({'message': f'Missing fields: {", ".join(missing)}'}), 400
-    return None
 
 # Endpoint to create a new user
 @app.route('/signup', methods=['POST'])
 def signup():
     request_json = request.get_json()
-    required_fields = ['username', 'email', 'password']
-    validation_error = validate_fields(required_fields, request_json)
-    if validation_error:
-        return validation_error
 
     username = request_json.get('username')
     email = request_json.get('email')
     password = request_json.get('password')
 
+    if not email or not password or not username:
+        return jsonify({'message': 'Email, password, and username are required'}), 400
     try:
         # Create Firebase user
         user_record = auth.create_user(
@@ -73,28 +59,26 @@ def signup():
         return jsonify({'token': access_token}), 201
     
     except Exception as e:
-        db.session.rollback()
-        logging.error(f"Error registering user: {str(e)}")
         return jsonify({'message': 'Error registering user', 'error': str(e)}), 400
 
-# Endpoint to login a user
+    
 @app.route('/login', methods=['POST'])
 def login():
     request_json = request.get_json()
-    required_fields = ['uid', 'email']
-    validation_error = validate_fields(required_fields, request_json)
-    if validation_error:
-        return validation_error
 
     uid = request_json.get('uid')
     email = request_json.get('email')
 
+    if not uid or not email:
+        return jsonify({'message': 'UID and email are required'}), 400
+
     try:
-        # Verify Firebase ID token instead of just using UID
+        # Get user from Firebase using the UID
         user_record = auth.get_user(uid)
         
-        # Check if user exists in PostgreSQL
+        # Optionally, get user from PostgreSQL if needed
         user = User.query.filter_by(firebase_uid=uid).first()
+
         if user:
             access_token = create_access_token(identity=user.id)
             return jsonify({
@@ -106,11 +90,9 @@ def login():
             }), 200
         else:
             return jsonify({'message': 'User not found in database'}), 404
-    except Exception as e:
-        logging.error(f"Error logging in user: {str(e)}")
-        return jsonify({'message': 'Error logging in user', 'error': str(e)}), 401
+    except auth.AuthError as e:
+        return jsonify({'message': 'Error fetching user data from Firebase', 'error': str(e)}), 401
 
-# Endpoint to get current logged-in user details
 @app.route('/current_user', methods=['GET'])
 @jwt_required()
 def get_current_user():
@@ -126,38 +108,28 @@ def get_current_user():
         else:
             return jsonify({'message': 'User not found'}), 404
     except Exception as e:
-        logging.error(f"Error fetching current user: {str(e)}")
         return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
 
-# Endpoint to logout a user
+
+
 @app.route('/logout', methods=['DELETE'])
 def logout():
     session.pop('user_id', None)  # Removes the user_id from the session if it exists
+    
     return jsonify({}), 204
 
 # Endpoint to manage users
 @app.route('/users', methods=['GET', 'POST'])
-@jwt_required()  # Ensure only logged-in users can manage users
 def manage_users():
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-    
-    if current_user.role != 'admin':
-        return jsonify({'message': 'Access forbidden'}), 403
-
     if request.method == 'GET':
         users = User.query.all()
-        return jsonify([user.to_dict() for user in users]), 200
-
+        return jsonify([user.to_dict() for user in users])
     elif request.method == 'POST':
         data = request.json
-        validation_error = validate_fields(['username', 'email', 'password'], data)
-        if validation_error:
-            return validation_error
-
         new_user = User(
             username=data['username'],
             email=data['email'],
+
         )
         new_user.password_hash = data['password']
         db.session.add(new_user)
@@ -165,18 +137,10 @@ def manage_users():
         return jsonify(new_user.to_dict()), 201
 
 @app.route('/users/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
-@jwt_required()
 def manage_user(id):
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-    
-    if current_user.role != 'admin':
-        return jsonify({'message': 'Access forbidden'}), 403
-
     user = User.query.get_or_404(id)
     if request.method == 'GET':
-        return jsonify(user.to_dict()), 200
-
+        return jsonify(user.to_dict())
     elif request.method == 'PATCH':
         data = request.json
         if 'username' in data:
@@ -188,44 +152,27 @@ def manage_user(id):
         if 'password' in data:
             user.password_hash = data['password']
         db.session.commit()
-        return jsonify(user.to_dict()), 200
-
+        return jsonify(user.to_dict())
     elif request.method == 'DELETE':
         db.session.delete(user)
         db.session.commit()
         return '', 204
-    
+
 # Endpoint to manage buses
 @app.route('/buses', methods=['GET', 'POST'])
-@jwt_required()
 def manage_buses():
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-    
-    if current_user.role != 'admin':
-        return jsonify({'message': 'Access forbidden'}), 403
-
     if request.method == 'GET':
         buses = Bus.query.all()
-        return jsonify([bus.to_dict() for bus in buses]), 200
-
+        return jsonify([bus.to_dict() for bus in buses])
     elif request.method == 'POST':
         data = request.json
-        validation_error = validate_fields(['driver_id', 'number_plate', 'number_of_seats', 'depatrture_from', 'depatrture_to', 'departure_time', 'arrival_time', 'price_per_seat'], data)
-        if validation_error:
-            return validation_error
-
-        # Ensure driver exists
-        driver = User.query.get(data['driver_id'])
-        if not driver:
-            return jsonify({'message': 'Driver not found'}), 404
-
         new_bus = Bus(
             driver_id=data['driver_id'],
             number_plate=data['number_plate'],
             number_of_seats=data['number_of_seats'],
-            depatrture_from=data['depatrture_from'],
-            depatrture_to=data['depatrture_to'],
+            seats_available=data['number_of_seats'],
+            departure_from=data['departure_from'],
+            departure_to=data['departure_to'],
             departure_time=data['departure_time'],
             arrival_time=data['arrival_time'],
             price_per_seat=data['price_per_seat']
@@ -235,18 +182,10 @@ def manage_buses():
         return jsonify(new_bus.to_dict()), 201
 
 @app.route('/buses/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
-@jwt_required()
 def manage_bus(id):
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
-    
-    if current_user.role != 'admin':
-        return jsonify({'message': 'Access forbidden'}), 403
-
     bus = Bus.query.get_or_404(id)
     if request.method == 'GET':
-        return jsonify(bus.to_dict()), 200
-
+        return jsonify(bus.to_dict())
     elif request.method == 'PATCH':
         data = request.json
         if 'driver_id' in data:
@@ -255,10 +194,12 @@ def manage_bus(id):
             bus.number_plate = data['number_plate']
         if 'number_of_seats' in data:
             bus.number_of_seats = data['number_of_seats']
-        if 'depatrture_from' in data:
-            bus.depatrture_from = data['depatrture_from']
-        if 'depatrture_to' in data:
-            bus.depatrture_to = data['depatrture_to']
+        if 'seats_available' in data:
+            bus.seats_available = data['seats_available']
+        if 'departure_from' in data:
+            bus.departure_from = data['departure_from']
+        if 'departure_to' in data:
+            bus.departure_to = data['departure_to']
         if 'departure_time' in data:
             bus.departure_time = data['departure_time']
         if 'arrival_time' in data:
@@ -266,8 +207,7 @@ def manage_bus(id):
         if 'price_per_seat' in data:
             bus.price_per_seat = data['price_per_seat']
         db.session.commit()
-        return jsonify(bus.to_dict()), 200
-
+        return jsonify(bus.to_dict())
     elif request.method == 'DELETE':
         db.session.delete(bus)
         db.session.commit()
@@ -275,7 +215,6 @@ def manage_bus(id):
 
 # Endpoint to manage bookings
 @app.route('/bookings', methods=['GET', 'POST'])
-@jwt_required()
 def manage_bookings():
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
@@ -286,9 +225,8 @@ def manage_bookings():
 
     elif request.method == 'POST':
         data = request.json
-        validation_error = validate_fields(['bus_id', 'seat_number'], data)
-        if validation_error:
-            return validation_error
+        if not all(field in data and data[field] for field in ['bus_id', 'seat_number']):
+            return jsonify({'message': 'Missing required fields'}), 400
 
         # Check if bus exists
         bus = Bus.query.get(data['bus_id'])
@@ -313,7 +251,6 @@ def manage_bookings():
         return jsonify(new_booking.to_dict()), 201
 
 @app.route('/bookings/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
-@jwt_required()
 def manage_booking(id):
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
@@ -339,29 +276,120 @@ def manage_booking(id):
         db.session.commit()
         return '', 204
 
-# Endpoint to get all routes
-@app.route('/routes', methods=['GET'])
-def get_routes():
-    routes = Route.query.all()
-    return jsonify([route.to_dict() for route in routes]), 200
+# Endpoint to manage reviews
+@app.route('/reviews', methods=['GET', 'POST'])
+def manage_reviews():
+    if request.method == 'GET':
+        reviews = Review.query.all()
+        return jsonify([review.to_dict() for review in reviews])
+    elif request.method == 'POST':
+        data = request.json
+        new_review = Review(
+            name=data['name'],
+            email=data['email'],
+            review=data['review'],
+            rating=data['rating']
+        )
+        db.session.add(new_review)
+        db.session.commit()
+        return jsonify(new_review.to_dict()), 201
 
-# Endpoint to contact us
-@app.route('/contact', methods=['POST'])
-def contact_us():
-    data = request.json
-    validation_error = validate_fields(['name', 'email', 'message'], data)
-    if validation_error:
-        return validation_error
+@app.route('/reviews/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
+def manage_review(id):
+    review = Review.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(review.to_dict())
+    elif request.method == 'PATCH':
+        data = request.json
+        if 'name' in data:
+            review.name = data['name']
+        if 'email' in data:
+            review.email = data['email']
+        if 'review' in data:
+            review.review = data['review']
+        if 'rating' in data:
+            review.rating = data['rating']
+        db.session.commit()
+        return jsonify(review.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(review)
+        db.session.commit()
+        return '', 204
+    
+# Endpoint to manage contactus
+@app.route('/contact', methods=['GET', 'POST'])
+def manage_contact():
+    if request.method == 'GET':
+        contactus = ContactUs.query.all()
+        return jsonify([contact.to_dict() for contact in contactus])
+    elif request.method == 'POST':
+        data = request.json
+        new_contact = ContactUs(
+            name=data['name'],
+            email=data['email'],
+            message=data['message']
+        )
+        db.session.add(new_contact)
+        db.session.commit()
+        return jsonify(new_contact.to_dict()), 201
+    
+@app.route('/contact/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
+def manage_contact(id):
+    contact = ContactUs.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(contact.to_dict())
+    elif request.method == 'PATCH':
+        data = request.json
+        if 'name' in data:
+            contact.name = data['name']
+        if 'email' in data:
+            contact.email = data['email']
+        if 'message' in data:
+            contact.message = data['message']
+        db.session.commit()
+        return jsonify(contact.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(contact)
+        db.session.commit()
+        return '', 204
+    
+# Endpoint to manage routes
+@app.route('/routes', methods=['GET', 'POST'])
+def manage_routes():
+    if request.method == 'GET':
+        routes = Route.query.all()
+        return jsonify([route.to_dict() for route in routes])
+    elif request.method == 'POST':
+        data = request.json
+        new_route = Route(
+            route_name=data['route_name'],
+            departure_to=data['departure_to'],
+            departure_from=data['departure_from'],
+            )
+        db.session.add(new_route)
+        db.session.commit()
+        return jsonify(new_route.to_dict()), 201
 
-    contact = ContactUs(
-        name=data['name'],
-        email=data['email'],
-        message=data['message']
-    )
-    db.session.add(contact)
-    db.session.commit()
-    return jsonify({'message': 'Thank you for contacting us!'}), 201
+@app.route('/routes/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
+def manage_route(id):
+    route = Route.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(route.to_dict())
+    elif request.method == 'PATCH':
+        data = request.json
+        if 'route_name' in data:
+            route.route_name = data['route_name']
+        if 'departure_to' in data:
+            route.departure_to = data['departure_to']
+        if 'departure_from' in data:
+            route.departure_from = data['departure_from']
+        db.session.commit()
+        return jsonify(route.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(route)
+        db.session.commit()
+        return '', 204
 
-# Run the application
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(port=5555, debug=True)

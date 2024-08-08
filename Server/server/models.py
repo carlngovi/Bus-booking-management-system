@@ -61,8 +61,8 @@ class Bus(db.Model):
     number_plate = db.Column(db.String(20), unique=True, nullable=False)
     number_of_seats = db.Column(db.Integer, nullable=False)
     seats_available = db.Column(db.Integer, nullable=False)
-    depatrture_from = db.Column(db.String(20), nullable = False )
-    depatrture_to = db.Column(db.String(20), nullable = False)
+    departure_from = db.Column(db.String(20), nullable = False )
+    departure_to = db.Column(db.String(20), nullable = False)
     departure_time = db.Column(db.DateTime, nullable=False)
     arrival_time = db.Column(db.DateTime, nullable=False)
     price_per_seat = db.Column(db.Numeric, nullable=False)
@@ -84,6 +84,8 @@ class Bus(db.Model):
             'number_plate': self.number_plate,
             'number_of_seats': self.number_of_seats,
             'seats_available': self.seats_available,
+            'departure_from': self.departure_from,
+            'departure_to': self.departure_to,
             'departure_time': self.departure_time.isoformat(),
             'arrival_time': self.arrival_time.isoformat(),
             'price_per_seat': str(self.price_per_seat),
@@ -98,7 +100,7 @@ class Bus(db.Model):
         }
 
     def __repr__(self):
-        return f"<Bus(id={self.id}, number_plate='{self.number_plate}', number_of_seats={self.number_of_seats}, seats_available={self.seats_available}, departure_time='{self.departure_time}', arrival_time='{self.arrival_time}', price_per_seat='{self.price_per_seat}')>"
+        return f"<Bus(id={self.id}, number_plate='{self.number_plate}', number_of_seats={self.number_of_seats}, seats_available={self.seats_available}, departure_time='{self.departure_time}', arrival_time='{self.arrival_time}', price_per_seat='{self.price_per_seat}, departure_from='{self.departure_from}', departure_to='{self.departure_to}')>"
 
 class ContactUs(db.Model):
     __tablename__ = 'contactus'
@@ -224,4 +226,4 @@ class Route(db.Model):
         }
 
     def __repr__(self):
-        return f"<Route(id={self.id}, route_name='{self.route_name}')>"
+        return f"<Route(id={self.id}, route_name='{self.route_name}, departure_from={self.departure_from}, departure_to={self.departure_to}')>"
