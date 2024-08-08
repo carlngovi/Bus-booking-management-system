@@ -318,7 +318,7 @@ def manage_review(id):
     
 # Endpoint to manage contactus
 @app.route('/contact', methods=['GET', 'POST'])
-def manage_contact():
+def manage_contactus():
     if request.method == 'GET':
         contactus = ContactUs.query.all()
         return jsonify([contact.to_dict() for contact in contactus])
