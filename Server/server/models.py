@@ -84,8 +84,6 @@ class Bus(db.Model):
             'number_plate': self.number_plate,
             'number_of_seats': self.number_of_seats,
             'seats_available': self.seats_available,
-            'model': self.model,
-            'route': self.route,
             'departure_time': self.departure_time.isoformat(),
             'arrival_time': self.arrival_time.isoformat(),
             'price_per_seat': str(self.price_per_seat),
@@ -100,7 +98,7 @@ class Bus(db.Model):
         }
 
     def __repr__(self):
-        return f"<Bus(id={self.id}, number_plate='{self.number_plate}', model='{self.model}', route='{self.route}')>"
+        return f"<Bus(id={self.id}, number_plate='{self.number_plate}', number_of_seats={self.number_of_seats}, seats_available={self.seats_available}, departure_time='{self.departure_time}', arrival_time='{self.arrival_time}', price_per_seat='{self.price_per_seat}')>"
 
 class ContactUs(db.Model):
     __tablename__ = 'contactus'
