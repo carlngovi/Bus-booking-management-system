@@ -53,6 +53,27 @@ class User(db.Model):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email} ', firebase_uid='{self.firebase_uid}')>"
     
 
+class Driver(db.Model):
+    __tablename__ = 'drivers'
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(80), nullable=False)
+    id_number = db.Column(db.String(20), unique=True, nullable=False)
+    driving_license = db.Column(db.String(20), unique=True, nullable=False)
+    phone_number = db.Column(db.String(20), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'full_name': self.full_name,
+            'id_number': self.id_number,
+            'driving_license': self.driving_license,
+            'phone_number': self.phone_number
+        }
+
+    def __repr__(self):
+        return f"<Driver(id={self.id}, full_name='{self.full_name}', id_number='{self.id_number}', driving_license='{self.driving_license}', phone_number='{self.phone_number}')>"
+
     
 class Bus(db.Model):
     __tablename__ = 'buses'
