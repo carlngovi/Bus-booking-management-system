@@ -4,7 +4,7 @@ from flask import Flask, request, session, jsonify
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 from dotenv import load_dotenv
-from models import db, User, Bus, Booking, Review, Route, ContactUs, Driver
+from models import db, User, Bus, Booking, Review, Route, ContactUs, Driver, Admin
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from firebase_admin import auth, initialize_app, credentials
@@ -209,6 +209,43 @@ def manage_driver(id):
     
     elif request.method == 'DELETE':
         db.session.delete(driver)
+        db.session.commit()
+        return '', 204
+    
+# Endpoint to manage admins
+@app.route('/admins', methods=['GET', 'POST'])
+def manage_admins():
+    if request.method == 'GET':
+        admins = Admin.query.all()
+        return jsonify([admin.to_dict() for admin in admins])
+    elif request.method == 'POST':
+        data = request.json
+        new_admin = Admin(
+            full_name=data['full_name'],
+            id_number=data['id_number'],
+            phone_number=data['phone_number']
+        )
+        db.session.add(new_admin)
+        db.session.commit()
+        return jsonify(new_admin.to_dict()), 201
+    
+@app.route('/admins/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
+def manage_admin(id):
+    admin = Admin.query.get_or_404(id)
+    if request.method == 'GET':
+        return jsonify(admin.to_dict())
+    elif request.method == 'PATCH':
+        data = request.json
+        if 'full_name' in data:
+            admin.full_name = data['full_name']
+        if 'id_number' in data:
+            admin.id_number = data['id_number']
+        if 'phone_number' in data:
+            admin.phone_number = data['phone_number']
+        db.session.commit()
+        return jsonify(admin.to_dict())
+    elif request.method == 'DELETE':
+        db.session.delete(admin)
         db.session.commit()
         return '', 204
 
