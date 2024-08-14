@@ -113,7 +113,42 @@ def get_current_user():
     except Exception as e:
         return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
 
+@app.route('/current_driver', methods=['GET'])
+@jwt_required()
+def get_current_driver():
+    try:
+        current_driver_id = get_jwt_identity()
+        current_driver = Driver.query.get(current_driver_id)
 
+        if current_driver:
+            return jsonify({
+                'full_name': current_driver.full_name,
+                'id_number': current_driver.id_number,
+                'driving_license': current_driver.driving_license,
+                'phone_number': current_driver.phone_number
+            }), 200
+        else:
+            return jsonify({'message': 'User not found'}), 404
+    except Exception as e:
+        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
+    
+@app.route('/current_admin', methods=['GET'])
+@jwt_required()
+def get_current_admin():
+    try:
+        current_admin_id = get_jwt_identity()
+        current_admin = Admin.query.get(current_admin_id)
+
+        if current_admin:
+            return jsonify({
+                'full_name': current_admin.full_name,
+                'id_number': current_admin.id_number,
+                'phone_number': current_admin.phone_number
+            }), 200
+        else:
+            return jsonify({'message': 'User not found'}), 404
+    except Exception as e:
+        return jsonify({'message': 'An error occurred', 'error': str(e)}), 500
 
 @app.route('/logout', methods=['DELETE'])
 def logout():
