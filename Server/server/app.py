@@ -32,6 +32,9 @@ firebase_admin.initialize_app(cred)
 
 
 # Endpoint to create a new user
+@app.route('/')
+def index():
+    return 'Welcome to the TRANSITE WISE the Bus Booking App!'
 @app.route('/signup', methods=['POST'])
 def signup():
     request_json = request.get_json()
