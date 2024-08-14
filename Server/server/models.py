@@ -31,7 +31,6 @@ class User(db.Model):
 
     #Relationships
     bookings = db.relationship('Booking', backref='user', lazy=True)
-    buses = db.relationship('Bus', backref='driver', lazy=True)
 
     def to_dict(self):
         return {
@@ -61,6 +60,9 @@ class Driver(db.Model):
     driving_license = db.Column(db.String(20), unique=True, nullable=False)
     phone_number = db.Column(db.String(20), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    #Relationships
+    buses = db.relationship('Bus', backref='driver', lazy=True)
 
     def to_dict(self):
         return {
@@ -97,7 +99,7 @@ class Admin(db.Model):
 class Bus(db.Model):
     __tablename__ = 'buses'
     id = db.Column(db.Integer, primary_key=True)
-    driver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    driver_full_name = db.Column(db.String(80), foreign_keys='drivers.full_name', nullable=False)
     number_plate = db.Column(db.String(20), unique=True, nullable=False)
     number_of_seats = db.Column(db.Integer, nullable=False)
     seats_available = db.Column(db.Integer, nullable=False)
