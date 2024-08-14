@@ -99,7 +99,7 @@ class Admin(db.Model):
 class Bus(db.Model):
     __tablename__ = 'buses'
     id = db.Column(db.Integer, primary_key=True)
-    driver_full_name = db.Column(db.String(80), foreign_keys='drivers.full_name', nullable=False)
+    driver_id = db.Column(db.Integer, db.ForeignKey('drivers.id'), nullable=False)
     number_plate = db.Column(db.String(20), unique=True, nullable=False)
     number_of_seats = db.Column(db.Integer, nullable=False)
     seats_available = db.Column(db.Integer, nullable=False)
