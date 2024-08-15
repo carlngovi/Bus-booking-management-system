@@ -105,6 +105,7 @@ def get_current_user():
 
         if current_user:
             return jsonify({
+                'id': current_user.id,
                 'email': current_user.email,
                 'name': current_user.username,
             }), 200
@@ -122,6 +123,7 @@ def get_current_driver():
 
         if current_driver:
             return jsonify({
+                'id': current_driver.id,
                 'full_name': current_driver.full_name,
                 'id_number': current_driver.id_number,
                 'driving_license': current_driver.driving_license,
@@ -141,6 +143,7 @@ def get_current_admin():
 
         if current_admin:
             return jsonify({
+                'id': current_admin.id,
                 'full_name': current_admin.full_name,
                 'id_number': current_admin.id_number,
                 'phone_number': current_admin.phone_number
