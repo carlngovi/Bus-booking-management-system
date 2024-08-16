@@ -1,10 +1,10 @@
 # server/app.py
-import os, firebase_admin
+import os, firebase_admin, random, string
 from flask import Flask, request, session, jsonify
 from sqlalchemy.exc import IntegrityError
 from flask_migrate import Migrate
 from dotenv import load_dotenv
-from models import db, User, Bus, Booking, Review, Route, ContactUs, Driver, Admin
+from models import db, User, Bus, Booking, Review, Route, ContactUs, Driver, Admin, Seat, PersnalDetails
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from firebase_admin import auth, initialize_app, credentials
@@ -344,20 +344,49 @@ def manage_bus(id):
         db.session.delete(bus)
         db.session.commit()
         return '', 204
-
-# Endpoint to manage bookings
-@app.route('/bookings', methods=['GET', 'POST'])
-def manage_bookings():
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
     
+# Endpoint to manage seats
+@app.route('/seats', methods=['GET', 'POST', 'PATCH'])
+def manage_seats():
     if request.method == 'GET':
-        bookings = Booking.query.filter_by(customer_id=current_user.id).all()
-        return jsonify([booking.to_dict() for booking in bookings]), 200
+        seats = Seat.query.all()
+        return jsonify([seat.to_dict() for seat in seats])
 
     elif request.method == 'POST':
         data = request.json
-        if not all(field in data and data[field] for field in ['bus_id', 'seat_number']):
+        new_seat = Seat(
+            bus_id=data['bus_id'],
+            seat_number=data['seat_number'],
+            status=data['status']
+        )
+        db.session.add(new_seat)
+        db.session.commit()
+        return jsonify(new_seat.to_dict()), 201
+
+    elif request.method == 'PATCH':
+        data = request.json
+        seat_id = data.get('seat_id')
+        new_status = data.get('status')
+
+        if not seat_id or not new_status:
+            return jsonify({'error': 'Invalid input'}), 400
+
+        seat = Seat.query.get(seat_id)
+
+        if not seat:
+            return jsonify({'error': 'Seat not found'}), 404
+
+        seat.status = new_status
+        db.session.commit()
+
+        return jsonify(seat.to_dict()), 200
+
+# Endpoint to manage bookings
+@app.route('/bookings', methods=['POST', 'GET', 'DELETE'])
+def manage_bookings():
+    if request.method == 'POST':
+        data = request.json
+        if not all(field in data and data[field] for field in ['bus_id', 'seat_number', 'name', 'idNumber', 'phoneNumber']):
             return jsonify({'message': 'Missing required fields'}), 400
 
         # Check if bus exists
@@ -366,27 +395,66 @@ def manage_bookings():
             return jsonify({'message': 'Bus not found'}), 404
 
         # Check if seat is already booked
-        existing_booking = Booking.query.filter_by(bus_id=bus.id, seat_number=data['seat_number']).first()
+        existing_booking = Booking.query.filter_by(bus_id=data['bus_id'], seat_number=data['seat_number']).first()
         if existing_booking:
             return jsonify({'message': 'Seat already booked'}), 409
 
-        # Book the seat
+        # Generate a unique ticket number
+        def generate_ticket():
+            while True:
+                code = ''.join(random.choices(string.digits, k=5) + random.choices(string.ascii_uppercase, k=1))
+                random.shuffle(list(code))
+                existing_booking = Booking.query.filter_by(ticket=code).first()
+                if not existing_booking:
+                    return code
+
+        # Create a new booking
         new_booking = Booking(
-            customer_id=current_user.id,
-            bus_id=bus.id,
-            seat_number=data['seat_number']
+            bus_id=data['bus_id'],
+            seat_number=data['seat_number'],
+            name=data['name'],
+            idNumber=data['idNumber'],
+            phoneNumber=data['phoneNumber'],
+            status=data['status'],
+            ticket=generate_ticket()  # Generate a unique ticket
         )
-        bus.number_of_seats -= 1  # Decrement seat count
-        new_booking.generate_ticket()  # Generate a unique ticket
+
         db.session.add(new_booking)
         db.session.commit()
-        return jsonify(new_booking.to_dict()), 201
+
+        return jsonify({
+            'ticket': new_booking.ticket,
+            'status': new_booking.status,
+            'message': 'Booking confirmed'
+        }), 201
+    
+    elif request.method == 'DELETE':
+        data = request.json
+        ticket = data.get('ticket')
+        
+        # Validate the provided ticket number
+        if not ticket:
+            return jsonify({'message': 'Ticket number is required'}), 400
+        
+        # Fetch the booking by ticket number
+        booking_to_delete = Booking.query.filter_by(ticket_number=ticket).first()
+        
+        if not booking_to_delete:
+            return jsonify({'message': 'Booking not found'}), 404
+
+
+        # Delete the booking
+        db.session.delete(booking_to_delete)
+        db.session.commit()
+        return '', 204
+
 
 @app.route('/bookings/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
 def manage_booking(id):
     current_user_id = get_jwt_identity()
     current_user = User.query.get(current_user_id)
-    
+
+    # Fetch the booking by ID
     booking = Booking.query.get_or_404(id)
     
     if request.method == 'GET':
@@ -404,9 +472,43 @@ def manage_booking(id):
         return jsonify(booking.to_dict()), 200
 
     elif request.method == 'DELETE':
-        db.session.delete(booking)
+        data = request.json
+        ticket_number = data.get('ticket_number')
+        
+        # Validate the provided ticket number
+        if not ticket_number:
+            return jsonify({'message': 'Ticket number is required'}), 400
+        
+        booking_to_delete = Booking.query.filter_by(ticket_number=ticket_number).first()
+        
+        if not booking_to_delete:
+            return jsonify({'message': 'Booking not found'}), 404
+
+        # Ensure the current user is authorized to delete this booking
+        if booking_to_delete.user_id != current_user.id:
+            return jsonify({'message': 'Unauthorized'}), 403
+
+        db.session.delete(booking_to_delete)
         db.session.commit()
         return '', 204
+
+    
+# Endpoint to manage Personal Details
+@app.route('/personaldetails', methods=['GET', 'POST'])
+def manage_personaldetails():
+    if request.method == 'GET':
+        personaldetails = PersnalDetails.query.all()
+        return jsonify([personaldetail.to_dict() for personaldetail in personaldetails])
+    elif request.method == 'POST':
+        data = request.json
+        new_personaldetail = PersnalDetails(
+            full_name=data['name'],
+            id_number=data['id_number'],
+            phone_number=data['phone_number']
+        )
+        db.session.add(new_personaldetail)
+        db.session.commit()
+        return jsonify(new_personaldetail.to_dict()), 201
 
 # Endpoint to manage reviews
 @app.route('/reviews', methods=['GET', 'POST'])

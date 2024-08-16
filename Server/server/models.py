@@ -29,8 +29,6 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    #Relationships
-    bookings = db.relationship('Booking', backref='user', lazy=True)
 
     def to_dict(self):
         return {
@@ -113,6 +111,7 @@ class Bus(db.Model):
 
     #Relationships
     bookings = db.relationship('Booking', backref='bus', lazy=True)
+    seats = db.relationship('Seat', backref='bus', lazy=True)
     routes = db.relationship('Route', secondary=bus_routes, backref='buses', lazy=True)
 
     def __init__(self, **kwargs):
@@ -143,7 +142,46 @@ class Bus(db.Model):
 
     def __repr__(self):
         return f"<Bus(id={self.id}, number_plate='{self.number_plate}', number_of_seats={self.number_of_seats}, seats_available={self.seats_available}, departure_time='{self.departure_time}', arrival_time='{self.arrival_time}', price_per_seat='{self.price_per_seat}, departure_from='{self.departure_from}', departure_to='{self.departure_to}')>"
+    
+class Seat(db.Model):
+    __tablename__ = 'seats'
+    id = db.Column(db.Integer, primary_key=True)
+    seat_number = db.Column(db.String(10), nullable=False)
+    status = db.Column(db.String(20), nullable=False)
+    bus_id = db.Column(db.Integer, db.ForeignKey('buses.id'), nullable=False)
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'seat_number': self.seat_number,
+            'status': self.status,
+            'bus_id': self.bus_id
+        }
+    
+    def __repr__(self):
+        return f"<Seat(id={self.id}, seat_number='{self.seat_number}', status='{self.status}, bus_id={self.bus_id}')>"
+    
+class PersnalDetails(db.Model):
+    __tablename__ = 'personal_details'
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(80), nullable=False)
+    id_number = db.Column(db.String(20), unique=True, nullable=False)
+    phone_number = db.Column(db.String(20), unique=True, nullable=False)
+    seat_number = db.Column(db.String(10), nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'full_name': self.full_name,
+            'id_number': self.id_number,
+            'phone_number': self.phone_number,
+            'seat_number': self.seat_number
+        }
+    
+    def __repr__(self):
+        return f"<PersnalDetails(id={self.id}, full_name='{self.full_name}', id_number='{self.id_number}', phone_number='{self.phone_number}', seat_number='{self.seat_number}')>"
+    
 class ContactUs(db.Model):
     __tablename__ = 'contactus'
 
@@ -167,28 +205,23 @@ class Booking(db.Model):
     __tablename__ = 'bookings'
     id = db.Column(db.Integer, primary_key=True)
     bus_id = db.Column(db.Integer, db.ForeignKey('buses.id'), nullable=False)
-    customer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    seat_number = db.Column(db.Integer, nullable=False)
+    seat_number = db.Column(db.String, nullable=False)
     status = db.Column(db.String(50), nullable=False, default='booked')  # 'booked', 'cancelled'
+    name = db.Column(db.String(80), nullable=False)
+    idNumber = db.Column(db.String(20), nullable=False)
+    phoneNumber = db.Column(db.String(20), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     ticket = db.Column(db.String(6), unique=True, nullable=False, default='')
 
-    def generate_ticket(self):
-        # Generate a random 6-digit code with 5 numbers and 1 letter
-        while True:
-            code = ''.join(random.choices(string.digits, k=5) + random.choices(string.ascii_uppercase, k=1))
-            random.shuffle(list(code))
-            existing_booking = Booking.query.filter_by(ticket=code).first()
-            if not existing_booking:
-                self.ticket = code
-                break
 
     def to_dict(self):
         return {
             'id': self.id,
             'bus_id': self.bus_id,
-            'customer_id': self.customer_id,
+            'name': self.name,
+            'idNumber': self.idNumber,
+            'phoneNumber': self.phoneNumber,
             'seat_number': self.seat_number,
             'status': self.status,
             'created_at': {
@@ -203,7 +236,7 @@ class Booking(db.Model):
         }
 
     def __repr__(self):
-        return f"<Booking(id={self.id}, bus_id={self.bus_id}, customer_id={self.customer_id}, seat_number={self.seat_number}, status='{self.status}', ticket='{self.ticket}')>"
+        return f"<Booking(id={self.id}, bus_id={self.bus_id}, name='{self.name}', idNumber='{self.idNumber}', phoneNumber='{self.phoneNumber}', seat_number={self.seat_number}, status='{self.status}', ticket='{self.ticket}')>"
 
     def book_seat(self):
         bus = Bus.query.get(self.bus_id)
