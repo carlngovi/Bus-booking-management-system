@@ -447,6 +447,10 @@ def manage_bookings():
         db.session.delete(booking_to_delete)
         db.session.commit()
         return '', 204
+    
+    elif request.method == 'GET':
+        bookings = Booking.query.all()
+        return jsonify([booking.to_dict() for booking in bookings])
 
 
 @app.route('/bookings/<int:id>', methods=['GET', 'PATCH', 'DELETE'])

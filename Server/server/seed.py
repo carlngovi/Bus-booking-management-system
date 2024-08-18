@@ -24,6 +24,12 @@ def drop_all_tables():
     metadata.drop_all(bind=engine)
     print("All tables have been dropped.")
 
+def create_all_tables():
+    # Create all tables defined in your SQLAlchemy models
+    db.create_all()
+    print("All tables have been created.")
+
 if __name__ == "__main__":
     with app.app_context():
         drop_all_tables()
+        create_all_tables()
