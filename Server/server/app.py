@@ -382,7 +382,7 @@ def manage_seats():
         return jsonify(seat.to_dict()), 200
 
 # Endpoint to manage bookings
-@app.route('/bookings', methods=['POST', 'GET', 'DELETE'])
+@app.route('/bookings', methods=['POST', 'GET'])
 def manage_bookings():
     if request.method == 'POST':
         data = request.json
@@ -428,26 +428,6 @@ def manage_bookings():
             'message': 'Booking confirmed'
         }), 201
     
-    elif request.method == 'DELETE':
-        data = request.json
-        ticket = data.get('ticket')
-        
-        # Validate the provided ticket number
-        if not ticket:
-            return jsonify({'message': 'Ticket number is required'}), 400
-        
-        # Fetch the booking by ticket number
-        booking_to_delete = Booking.query.filter_by(ticket_number=ticket).first()
-        
-        if not booking_to_delete:
-            return jsonify({'message': 'Booking not found'}), 404
-
-
-        # Delete the booking
-        db.session.delete(booking_to_delete)
-        db.session.commit()
-        return '', 204
-    
     elif request.method == 'GET':
         bookings = Booking.query.all()
         return jsonify([booking.to_dict() for booking in bookings])
@@ -476,25 +456,16 @@ def manage_booking(id):
         return jsonify(booking.to_dict()), 200
 
     elif request.method == 'DELETE':
-        data = request.json
-        ticket_number = data.get('ticket_number')
-        
-        # Validate the provided ticket number
-        if not ticket_number:
-            return jsonify({'message': 'Ticket number is required'}), 400
-        
-        booking_to_delete = Booking.query.filter_by(ticket_number=ticket_number).first()
-        
-        if not booking_to_delete:
-            return jsonify({'message': 'Booking not found'}), 404
-
         # Ensure the current user is authorized to delete this booking
-        if booking_to_delete.user_id != current_user.id:
+        if booking.user_id != current_user.id:
             return jsonify({'message': 'Unauthorized'}), 403
 
-        db.session.delete(booking_to_delete)
+        # Delete the booking from the database
+        db.session.delete(booking)
         db.session.commit()
+        
         return '', 204
+
 
     
 # Endpoint to manage Personal Details
