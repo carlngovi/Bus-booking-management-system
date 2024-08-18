@@ -435,8 +435,6 @@ def manage_bookings():
 
 @app.route('/bookings/<int:id>', methods=['GET', 'PATCH', 'DELETE'])
 def manage_booking(id):
-    current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
 
     # Fetch the booking by ID
     booking = Booking.query.get_or_404(id)
@@ -456,9 +454,6 @@ def manage_booking(id):
         return jsonify(booking.to_dict()), 200
 
     elif request.method == 'DELETE':
-        # Ensure the current user is authorized to delete this booking
-        # if booking.user_id != current_user.id:
-        #     return jsonify({'message': 'Unauthorized'}), 403
 
         # Delete the booking from the database
         db.session.delete(booking)
